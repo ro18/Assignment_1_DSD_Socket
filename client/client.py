@@ -1,4 +1,6 @@
 import socket
+import os
+
 
 
 class Client:
@@ -32,8 +34,7 @@ class Client:
                 break
             response+=server_dir
         #print(f"dir from client:{response.decode()}")
-        return response.decode()
-
+        return response
 
 
     def initialize(self, host, port):
@@ -58,7 +59,7 @@ class Client:
         print('Connected to server at IP:', host, 'and Port:', port)
         print('Handshake Done. EOF is:', eof_token.decode())
         current_directory_server = self.receive_message_ending_with_token(mysocket,1024,eof_token)
-        print(current_directory_server)
+        print(current_directory_server.decode())
         return (mysocket,eof_token)
 
             
@@ -85,6 +86,7 @@ class Client:
         final_user_cmd = command_and_arg.encode()+eof_token
         client_socket.sendall(final_user_cmd)
 
+      
 
 
 
@@ -117,6 +119,8 @@ class Client:
         final_user_cmd = command_and_arg.encode()+eof_token
         client_socket.sendall(final_user_cmd)
 
+        
+
         #raise NotImplementedError('Your implementation here.')
 
     def issue_ul(self, command_and_arg, client_socket, eof_token):
@@ -128,7 +132,25 @@ class Client:
         :param client_socket: the active client socket object.
         :param eof_token: a token to indicate the end of the message.
         """
-        raise NotImplementedError('Your implementation here.')
+
+      
+        final_user_cmd = command_and_arg.encode()+eof_token
+        client_socket.sendall(final_user_cmd)
+
+        client = "client"
+        file_content = bytearray()
+        filepath = os.path.join(client,command_and_arg.split()[1])
+
+        print(f"filepath for ul:{filepath}")
+
+        with open(filepath, 'rb') as f:
+            file_content = f.read()
+
+        file_content_with_token = file_content + eof_token
+        #print(f"file content to upload:{file_content_with_token}")
+        client_socket.sendall(file_content_with_token)
+
+        
 
     def issue_dl(self, command_and_arg, client_socket, eof_token):
         """
@@ -141,16 +163,30 @@ class Client:
         :param eof_token: a token to indicate the end of the message.
         :return:
         """
+        client = "client"
         final_user_cmd = command_and_arg.encode()+eof_token
         client_socket.sendall(final_user_cmd)
 
-        file_content = bytearray()
-        while True:
-            packet = client_socket.recv(1024)
-            if packet[-11:] == eof_token:
-                file_content += packet[:-11]
-                break
-            file_content += packet
+        file_content = self.receive_message_ending_with_token(client_socket,1024,eof_token)
+
+        path = os.path.join(client,command_and_arg.split()[1])
+
+        client = os.path.abspath(path)
+
+        with open(client, 'wb') as f:
+           f.write(file_content)
+
+        #return ""
+
+        
+
+        
+
+        
+
+
+        
+
         
 
     def issue_info(self,command_and_arg, client_socket, eof_token):
@@ -175,7 +211,12 @@ class Client:
         :param client_socket: the active client socket object.
         :param eof_token: a token to indicate the end of the message.
         """
-        raise NotImplementedError('Your implementation here.')
+        final_user_cmd = command_and_arg.encode()+eof_token
+        client_socket.sendall(final_user_cmd)
+
+        #receive updated directory from server
+
+        #raise NotImplementedError('Your implementation here.')
 
     def start(self):
         """
@@ -212,18 +253,22 @@ class Client:
                 elif cmd[0] == "rm":
                     self.issue_rm(user_input,client_socket,eof_token)
                 elif cmd[0] == "mv":
+
                     self.issue_mv(user_input,client_socket,eof_token)
                 elif cmd[0] == "dl":
+
                     self.issue_dl(user_input,client_socket,eof_token)
+
                 elif cmd[0] == "ul":
+
                     self.issue_ul(user_input,client_socket,eof_token)
+
                 elif cmd[0] == "info":
                     self.issue_info(user_input,client_socket,eof_token)
                     # elif cmd == "exit":
                     #     self.issue_info(user_input.decode(),client_socket,eof_token)
-                
                 cwd = self.receive_message_ending_with_token(client_socket,1024,eof_token) 
-                print(cwd)
+                print(cwd.decode())
 
         print('Exiting the application.')
 

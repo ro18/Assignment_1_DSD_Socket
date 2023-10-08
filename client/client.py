@@ -18,7 +18,23 @@ class Client:
         :param eof_token: a token that denotes the end of the message.
         :return: a bytearray message with the eof_token stripped from the end.
         """
-        raise NotImplementedError('Your implementation here.')
+        #print("in receive_message_ending_with_token:client")
+       
+        response= bytearray()
+        while True:
+            server_dir= active_socket.recv(buffer_size)
+        
+            #print(f"sentserver dir :{server_dir}")
+           
+            if server_dir[-11:]== eof_token:
+                
+                response += server_dir[:-11]
+                break
+            response+=server_dir
+        #print(f"dir from client:{response.decode()}")
+        return response.decode()
+
+
 
     def initialize(self, host, port):
         """
@@ -36,7 +52,21 @@ class Client:
 
         # print('Handshake Done. EOF is:', eof_token)
 
-        raise NotImplementedError('Your implementation here.')
+        mysocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        mysocket.connect((host, port))
+        eof_token = mysocket.recv(1024)
+        print('Connected to server at IP:', host, 'and Port:', port)
+        print('Handshake Done. EOF is:', eof_token.decode())
+        current_directory_server = self.receive_message_ending_with_token(mysocket,1024,eof_token)
+        print(current_directory_server)
+        return (mysocket,eof_token)
+
+            
+        
+
+
+
+       
 
 
 
@@ -49,7 +79,14 @@ class Client:
         :param client_socket: the active client socket object.
         :param eof_token: a token to indicate the end of the message.
         """
-        raise NotImplementedError('Your implementation here.')
+        #print(f"in issue cd and cmd:{command_and_arg}")
+        #print(f"client socket:{client_socket}")
+       # client_socket.
+        final_user_cmd = command_and_arg.encode()+eof_token
+        client_socket.sendall(final_user_cmd)
+
+
+
 
     def issue_mkdir(self, command_and_arg, client_socket, eof_token):
         """
@@ -60,7 +97,12 @@ class Client:
         :param client_socket: the active client socket object.
         :param eof_token: a token to indicate the end of the message.
         """
-        raise NotImplementedError('Your implementation here.')
+        final_user_cmd = command_and_arg.encode()+eof_token
+        client_socket.sendall(final_user_cmd)
+
+
+
+        #raise NotImplementedError('Your implementation here.')
 
     def issue_rm(self, command_and_arg, client_socket, eof_token):
         """
@@ -70,8 +112,12 @@ class Client:
         :param command_and_arg: full command (with argument) provided by the user.
         :param client_socket: the active client socket object.
         :param eof_token: a token to indicate the end of the message.
+        
         """
-        raise NotImplementedError('Your implementation here.')
+        final_user_cmd = command_and_arg.encode()+eof_token
+        client_socket.sendall(final_user_cmd)
+
+        #raise NotImplementedError('Your implementation here.')
 
     def issue_ul(self, command_and_arg, client_socket, eof_token):
         """
@@ -95,7 +141,17 @@ class Client:
         :param eof_token: a token to indicate the end of the message.
         :return:
         """
-        raise NotImplementedError('Your implementation here.')
+        final_user_cmd = command_and_arg.encode()+eof_token
+        client_socket.sendall(final_user_cmd)
+
+        file_content = bytearray()
+        while True:
+            packet = client_socket.recv(1024)
+            if packet[-11:] == eof_token:
+                file_content += packet[:-11]
+                break
+            file_content += packet
+        
 
     def issue_info(self,command_and_arg, client_socket, eof_token):
         """
@@ -127,14 +183,59 @@ class Client:
         2) Accepts user input and issue commands until exit.
         """
         # initialize
+       
+        client_socket,eof_token=self.initialize(self.host,self.port)
+        #client_socket.sendall(b'heee')
 
-        raise NotImplementedError('Your implementation here.')
-        # while True:
-            # get user input
+        #print(f"Sock is: {sock} ")
 
-            # call the corresponding command function or exit
+        #print(f"TOKEN IS:{eof_token}")
+        while True:
+            #print("next round")
+            user_input = input("Enter your command:")
+            if user_input=="exit": 
+                client_socket.close()
+                break
+            else:
+                #call the corresponding command function or exit
+                #print("in else")
 
-        # print('Exiting the application.')
+                cmd = user_input.split()
+                #print(f"cmd given by you is:{cmd}")
+                if cmd[0] == "cd":
+                    #print("in cd")
+                    self.issue_cd(user_input,client_socket,eof_token)
+
+                elif cmd[0] == "mkdir":
+                    self.issue_mkdir(user_input,client_socket,eof_token)
+
+                elif cmd[0] == "rm":
+                    self.issue_rm(user_input,client_socket,eof_token)
+                elif cmd[0] == "mv":
+                    self.issue_mv(user_input,client_socket,eof_token)
+                elif cmd[0] == "dl":
+                    self.issue_dl(user_input,client_socket,eof_token)
+                elif cmd[0] == "ul":
+                    self.issue_ul(user_input,client_socket,eof_token)
+                elif cmd[0] == "info":
+                    self.issue_info(user_input,client_socket,eof_token)
+                    # elif cmd == "exit":
+                    #     self.issue_info(user_input.decode(),client_socket,eof_token)
+                
+                cwd = self.receive_message_ending_with_token(client_socket,1024,eof_token) 
+                print(cwd)
+
+        print('Exiting the application.')
+
+
+
+
+
+        
+       
+               
+                    
+            
 
 
 def run_client():

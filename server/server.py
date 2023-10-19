@@ -47,28 +47,14 @@ class Server:
 
         while True:
             conn, client_address = server_socket.accept()
-            #print(f"Accepted connection  {conn}")
             print(f"Accepted connection from {client_address}")
             
             eof_token=self.generate_random_eof_token()
             conn.send(eof_token.encode())
-            # Kuser_input = conn.recv(1024).decode()
-            # print(f"User sent: {user_input}")
+
             self.server_socket = conn
             client_thread = ClientThread(self,conn, client_address,eof_token)
             client_thread.start()
-
-
-                
-
-
-
-         
-
-        #raise NotImplementedError("Your implementation here.")
-
-
-
 
     def get_working_directory_info(self, working_directory):
         """
@@ -80,7 +66,6 @@ class Server:
             [i.name for i in Path(working_directory).iterdir() if i.is_dir() ]
             
         )
-        #print(f"dirs:{dir}")
         files = "\n-- " + "\n-- ".join(
             [i.name for i in Path(working_directory).iterdir() if i.is_file()]
             
@@ -111,7 +96,6 @@ class Server:
         :param eof_token: a token that denotes the end of the message.
         :return: a bytearray message with the eof_token stripped from the end.
         """
-        #print("in receive_message_ending_with_token:server")
        
         response= bytearray()
         while True:
@@ -122,7 +106,6 @@ class Server:
                 response += client_cmd[:-11]
                 break
             response+=client_cmd
-        #print(f"cmd from client:{response.decode()}")
         return response
 
 
@@ -137,14 +120,9 @@ class Server:
         :param new_working_directory: name of the sub directory or '..' for parent
         :return: absolute path of new current working directory
         """
-        #print(f"in handle_cd:{current_working_directory}:{new_working_directory}")
-        #print(f"{current_working_directory}/{new_working_directory}")
-        cwd=current_working_directory+"/"+new_working_directory # use path.join here
-        #print(f"new dir:{os.path.abspath(cwd)}")
-
+        cwd=os.path.join(current_working_directory,new_working_directory) 
         return os.path.abspath(cwd)
 
-        #raise NotImplementedError("Your implementation here.")
 
     def handle_mkdir(self, current_working_directory, directory_name):
         """
@@ -152,8 +130,7 @@ class Server:
         :param current_working_directory: string of current working directory
         :param directory_name: name of new sub directory
         """
-        #print(f"in handle_mkdir:{current_working_directory}:{directory_name}")
-       # print(f"new dir:{os.path.abspath(current_working_directory)}")
+
         path = os.path.join(current_working_directory,directory_name)
         os.mkdir(path)
         self.current_directory = path
@@ -168,19 +145,15 @@ class Server:
         :param current_working_directory: string of current working directory
         :param object_name: name of sub directory or file to remove
         """
-        if os.path.isfile(object_name):
-            path = os.path.join(current_working_directory,object_name)
-            #print("path file:{path}")
-            os.remove(object_name)
+        path = os.path.join(current_working_directory,object_name)
+        print(f"rm path:{path}")
+
+        if os.path.isfile(os.path.join(current_working_directory,object_name)):
+            os.remove(path)
 
         else:
-            path = os.path.join(current_working_directory,object_name)
-            #print("path dir:{path}")
-            os.rmdir(path)
+            shutil.rmtree(path)
 
-        #self.current_directory = path
-        
-        #raise NotImplementedError("Your implementation here.")
 
     def handle_ul(
         self, current_working_directory, file_name, service_socket, eof_token ):
@@ -203,8 +176,6 @@ class Server:
 
         with open(client, 'wb') as f:
            f.write(file_content)
-
-        #raise NotImplementedError("Your implementation here.")
 
     def handle_dl(
         self, current_working_directory, file_name, service_socket, eof_token):
@@ -236,8 +207,13 @@ class Server:
         :param eof_token: a token to indicate the end of the message.
         """
 
+        file_content = bytearray()
+        filepath = os.path.join(current_working_directory,file_name)
+        with open(filepath, 'rb') as f:
+            file_content = f.read()
 
-        #raise NotImplementedError('Your implementation here.')
+        file_size = str(len(file_content))
+        service_socket.sendall((file_size+eof_token).encode())
     
     def handle_mv(self,current_working_directory, file_name, destination_name):
         """
@@ -247,37 +223,27 @@ class Server:
         :param file_name: name of the file tp be moved / renamed
         :param destination_name: destination directory or new filename
         """
+        original_filepath = os.path.join(current_working_directory,file_name)
 
-        filepath = os.path.join(current_working_directory,file_name)
-        new_dir =  os.path.abspath(destination_name)
-       
+        found=False
+        for root,dirs,files in os.walk(os.path.abspath(current_working_directory)):
+            for name in dirs:
+                if name == destination_name[:-1]:
+                    found=True
+                    new_path = os.path.join(root,name)
+                    shutil.move(original_filepath,new_path)
+                    self.current_directory= name
+                    break
 
-        print(f"new path:{new_dir}")
+  
 
-        print(f"is dir:{os.path.isdir(new_dir)}")
+        if found == False:
+            for root,dirs,files in os.walk(os.path.abspath(current_working_directory)):
+                for name in files:
 
-
-        print(f"repdir {repr(new_dir)}")
-
-
-        if os.path.isdir(new_dir):
-            print("to move dir")
-            #new_dir = os.path.dirname(new_path)
-            #print("path file:{path}")
-            shutil.move(filepath,new_dir)
-            self.current_directory = destination_name
-
-        else:
-            #path = os.path.join(current_working_directory,object_name)
-            #print("path dir:{path}")
-            new_path = os.path.join(current_working_directory,destination_name)
-
-            print("to rename")
-            os.rename(filepath,new_path)
-
-
-
-
+                    if name == file_name:
+                        new_path = os.path.join(current_working_directory,destination_name)
+                        os.rename(original_filepath,new_path)
 
 
 class ClientThread(Thread):
@@ -291,58 +257,42 @@ class ClientThread(Thread):
 
     def run(self):
         print ("Connection from : ", self.address)
-
-        # establish working directory
-        path="server"
-        server=os.path.abspath(path)
-        self.current_directory=os.path.dirname(server)
-        #print(f"server_directory:{self.current_directory}")
-        #self.cwd = self.server_obj.get_working_directory_info(current_directory)
-        #print(self.server_obj.get_working_directory_info(self.current_directory))
-        #print(self.service_socket.recv(1024).decode())
+        self.current_directory=os.path.dirname(__file__)
         self.service_socket.sendall((self.server_obj.get_working_directory_info((self.current_directory))+self.eof_token).encode())
-        # send the current dir info
 
         
         while True:
             
             user_command = self.server_obj.receive_message_ending_with_token(self.service_socket,1024,self.eof_token)
-            #print(f"user command :{user_command}")
-
-        # get the command and arguments and call the corresponding method
             cmd=user_command.decode().split()
-            #print(f"after split:{cmd[0]}")
 
             if user_command == "exit": break
 
             if cmd[0] == "cd":
-                #print(cmd)
                 self.current_directory=self.server_obj.handle_cd(self.current_directory,cmd[1])
-                #print(self.current_directory)
+
             elif cmd[0] == "mkdir":
-                #print(cmd)
                 self.server_obj.handle_mkdir(self.current_directory,cmd[1])
-                #print(self.current_directory)
 
             elif cmd[0] == "rm":
                 self.server_obj.handle_rm(self.current_directory,cmd[1])
 
             elif cmd[0] == "mv":
                 self.server_obj.handle_mv(self.current_directory,cmd[1],cmd[2])
+
             elif cmd[0] == "dl":
                 self.server_obj.handle_dl(self.current_directory,cmd[1],self.service_socket,self.eof_token)
                 
             elif cmd[0] == "ul":
                 self.server_obj.handle_ul(self.current_directory,cmd[1],self.service_socket,self.eof_token)
-                # elif cmd == "info":
-                #     self.issue_info(user_input.decode(),client_socket,eof_token)
-        # sleep for 1 second
+
+            elif cmd[0] == "info":
+                self.server_obj.handle_info(self.current_directory,cmd[1],self.service_socket,self.eof_token)
+
             time.sleep(1) 
 
-        # send current dir info
             dir_info = self.server_obj.get_working_directory_info(self.current_directory)
-            #print("final")
-            #print(dir_info+self.eof_token)
+
             self.service_socket.sendall((dir_info+self.eof_token).encode())
 
 

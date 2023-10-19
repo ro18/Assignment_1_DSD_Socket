@@ -1,5 +1,5 @@
-from client.client import Client
-from server.server import run_server as Server_main
+from client import Client
+from server import run_server as Server_main
 import multiprocessing
 import time
 import shutil
